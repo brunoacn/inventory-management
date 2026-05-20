@@ -1,8 +1,14 @@
+from datetime import datetime, timedelta
+from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 from mock_data import inventory_items, orders, demand_forecasts, backlog_items, spending_summary, monthly_spending, category_spending, recent_transactions, purchase_orders
+
+# Lead time applied to every internal restocking order (calendar days).
+# Per product spec: fixed 14-day default; not configurable from the UI.
+RESTOCKING_LEAD_TIME_DAYS = 14
 
 app = FastAPI(title="Factory Inventory Management System")
 
@@ -80,6 +86,10 @@ class Order(BaseModel):
     actual_delivery: Optional[str] = None
     warehouse: Optional[str] = None
     category: Optional[str] = None
+    # Tags an order as internally generated (e.g. "restocking") so the
+    # Orders view can partition it into its own section.
+    source: Optional[str] = None
+    lead_time_days: Optional[int] = None
 
 class DemandForecast(BaseModel):
     id: str
@@ -119,6 +129,16 @@ class CreatePurchaseOrderRequest(BaseModel):
     unit_cost: float
     expected_delivery_date: str
     notes: Optional[str] = None
+
+class RestockingOrderItem(BaseModel):
+    sku: str
+    name: str
+    quantity: int
+    unit_price: float
+
+class CreateRestockingOrderRequest(BaseModel):
+    items: List[RestockingOrderItem]
+    total_value: float
 
 # API endpoints
 @app.get("/")
@@ -160,6 +180,38 @@ def get_order(order_id: str):
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
+@app.post("/api/orders/restock", response_model=Order)
+def create_restocking_order(payload: CreateRestockingOrderRequest):
+    """Create an internal restocking order from the Restocking page."""
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="At least one item is required")
+
+    # Order numbers count existing restocking orders so submissions in
+    # the same session get monotonically increasing identifiers.
+    existing_count = sum(1 for o in orders if o.get("source") == "restocking")
+    order_number = f"RST-2025-{existing_count + 1:04d}"
+
+    now = datetime.now()
+    new_order = {
+        "id": str(uuid4()),
+        "order_number": order_number,
+        "customer": "Internal Restocking",
+        "items": [item.model_dump() for item in payload.items],
+        "status": "Processing",
+        "order_date": now.isoformat(),
+        "expected_delivery": (now + timedelta(days=RESTOCKING_LEAD_TIME_DAYS)).isoformat(),
+        "total_value": payload.total_value,
+        "actual_delivery": None,
+        "warehouse": None,
+        "category": None,
+        "source": "restocking",
+        "lead_time_days": RESTOCKING_LEAD_TIME_DAYS,
+    }
+    # Mutates the module-level orders list so subsequent GETs surface it
+    # without a backend restart. Resets on process restart (demo only).
+    orders.append(new_order)
+    return new_order
 
 @app.get("/api/demand", response_model=List[DemandForecast])
 def get_demand_forecasts():

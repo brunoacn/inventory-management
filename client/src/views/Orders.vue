@@ -8,28 +8,83 @@
     <div v-if="loading" class="loading">{{ t('common.loading') }}</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <div v-else>
+      <!-- Stat cards are sourced from regularOrders so restocking orders don't skew the counts -->
       <div class="stats-grid">
         <div class="stat-card success">
           <div class="stat-label">{{ t('status.delivered') }}</div>
-          <div class="stat-value">{{ getOrdersByStatus('Delivered').length }}</div>
+          <div class="stat-value">{{ getRegularOrdersByStatus('Delivered').length }}</div>
         </div>
         <div class="stat-card info">
           <div class="stat-label">{{ t('status.shipped') }}</div>
-          <div class="stat-value">{{ getOrdersByStatus('Shipped').length }}</div>
+          <div class="stat-value">{{ getRegularOrdersByStatus('Shipped').length }}</div>
         </div>
         <div class="stat-card warning">
           <div class="stat-label">{{ t('status.processing') }}</div>
-          <div class="stat-value">{{ getOrdersByStatus('Processing').length }}</div>
+          <div class="stat-value">{{ getRegularOrdersByStatus('Processing').length }}</div>
         </div>
         <div class="stat-card danger">
           <div class="stat-label">{{ t('status.backordered') }}</div>
-          <div class="stat-value">{{ getOrdersByStatus('Backordered').length }}</div>
+          <div class="stat-value">{{ getRegularOrdersByStatus('Backordered').length }}</div>
         </div>
       </div>
 
+      <!-- Submitted (restocking) orders — only rendered when at least one exists -->
+      <div v-if="restockingOrders.length > 0" class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">{{ t('orders.submittedOrders') }}</h3>
+            <p class="card-sub-description">{{ t('orders.submittedOrdersDescription') }}</p>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="orders-table restock-table">
+            <thead>
+              <tr>
+                <th class="col-order-number">{{ t('orders.table.orderNumber') }}</th>
+                <th class="col-customer">{{ t('orders.table.customer') }}</th>
+                <th class="col-items">{{ t('orders.table.items') }}</th>
+                <th class="col-status">{{ t('orders.table.status') }}</th>
+                <th class="col-date">{{ t('orders.table.orderDate') }}</th>
+                <th class="col-lead-time">{{ t('orders.table.leadTime') }}</th>
+                <th class="col-value">{{ t('orders.table.totalValue') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Use order.id as key — never index -->
+              <tr v-for="order in restockingOrders" :key="order.id">
+                <td class="col-order-number"><strong>{{ order.order_number }}</strong></td>
+                <td class="col-customer">{{ translateCustomerName(order.customer) }}</td>
+                <td class="col-items">
+                  <details class="items-details">
+                    <summary class="items-summary">
+                      {{ t('orders.itemsCount', { count: order.items.length }) }}
+                    </summary>
+                    <div class="items-dropdown">
+                      <div v-for="item in order.items" :key="item.sku || item.name" class="item-entry">
+                        <span class="item-name">{{ translateProductName(item.name) }}</span>
+                        <span class="item-meta">{{ t('orders.quantity') }}: {{ item.quantity }} @ {{ currencySymbol }}{{ item.unit_price }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+                <td class="col-status">
+                  <span :class="['badge', getOrderStatusClass(order.status)]">
+                    {{ t(`status.${order.status.toLowerCase()}`) }}
+                  </span>
+                </td>
+                <td class="col-date">{{ formatDate(order.order_date) }}</td>
+                <td class="col-lead-time">{{ t('orders.leadTimeDays', { days: order.lead_time_days }) }}</td>
+                <td class="col-value"><strong>{{ currencySymbol }}{{ order.total_value.toLocaleString() }}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Regular orders table (excludes restocking orders) -->
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">{{ t('orders.allOrders') }} ({{ orders.length }})</h3>
+          <h3 class="card-title">{{ t('orders.allOrders') }} ({{ regularOrders.length }})</h3>
         </div>
         <div class="table-container">
           <table class="orders-table">
@@ -45,7 +100,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="order in orders" :key="order.id">
+              <tr v-for="order in regularOrders" :key="order.id">
                 <td class="col-order-number"><strong>{{ order.order_number }}</strong></td>
                 <td class="col-customer">{{ translateCustomerName(order.customer) }}</td>
                 <td class="col-items">
@@ -129,8 +184,18 @@ export default {
       loadOrders()
     })
 
-    const getOrdersByStatus = (status) => {
-      return orders.value.filter(order => order.status === status)
+    // Partition orders: restocking orders are shown in their own section;
+    // regular orders drive the main table and the stat card counts.
+    const restockingOrders = computed(() =>
+      orders.value.filter(o => o.source === 'restocking')
+    )
+    const regularOrders = computed(() =>
+      orders.value.filter(o => o.source !== 'restocking')
+    )
+
+    // Status counts are scoped to regular orders so the dashboard math stays consistent
+    const getRegularOrdersByStatus = (status) => {
+      return regularOrders.value.filter(order => order.status === status)
     }
 
     const getOrderStatusClass = (status) => {
@@ -160,7 +225,9 @@ export default {
       loading,
       error,
       orders,
-      getOrdersByStatus,
+      restockingOrders,
+      regularOrders,
+      getRegularOrdersByStatus,
       getOrderStatusClass,
       formatDate,
       currencySymbol,
@@ -201,6 +268,17 @@ export default {
 
 .col-value {
   width: 120px;
+}
+
+.col-lead-time {
+  width: 110px;
+}
+
+/* Sub-description under submitted orders card title */
+.card-sub-description {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 0.25rem;
 }
 
 /* Items details styling */

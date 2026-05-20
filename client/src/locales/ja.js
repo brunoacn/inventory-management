@@ -6,6 +6,7 @@ export default {
     orders: '注文',
     finance: '財務',
     demandForecast: '需要予測',
+    restocking: '再入荷',
     companyName: '触媒コンポーネンツ',
     subtitle: '在庫管理システム'
   },
@@ -125,7 +126,35 @@ export default {
       totalValue: '合計金額',
       status: 'ステータス',
       expectedDelivery: '予定配達日',
-      actualDelivery: '実際の配達日'
+      actualDelivery: '実際の配達日',
+      leadTime: 'リードタイム'
+    },
+    submittedOrders: '送信済み注文',
+    submittedOrdersDescription: 'このセッションで送信された再入荷注文',
+    leadTimeDays: '{days}日'
+  },
+
+  // Restocking
+  restocking: {
+    title: '再入荷',
+    description: '予算を設定し、需要予測に基づいて再入荷注文を行います',
+    availableBudget: '利用可能な予算',
+    recommendedTotal: '推奨合計',
+    budgetRemaining: '残り予算',
+    recommendations: '推奨品目',
+    recommendationsDescription: '需要動向に基づき、予算内に収まる品目',
+    placeOrder: '注文する',
+    placing: '注文を送信中...',
+    noItemsFit: 'この予算に収まる品目はありません。',
+    submittedMessage: '再入荷注文 {orderNumber} を送信しました。注文タブで確認してください。',
+    customerLabel: '社内再入荷',
+    table: {
+      sku: 'SKU',
+      itemName: '品目名',
+      trend: 'トレンド',
+      restockQty: '再入荷数量',
+      unitCost: '単価',
+      subtotal: '小計'
     }
   },
 
@@ -373,6 +402,7 @@ export default {
     'Superior Manufacturing': 'スーペリアマニュファクチャリング',
     'Cascade Manufacturing': 'カスケードマニュファクチャリング',
     'Acme Manufacturing Corp': 'アクメ製造',
+    'Internal Restocking': '社内再入荷',
     'TechBuild Industries': 'テックビルド工業',
     'Advanced Components Inc': 'アドバンストコンポーネンツ',
     'Premier Industries': 'プレミア工業',
